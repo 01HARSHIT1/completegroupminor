@@ -33,7 +33,11 @@ export default function PredictionsPage() {
       () => {}
     )
 
-    return () => ws.close()
+    return () => {
+      if (ws && ws.close) {
+        ws.close()
+      }
+    }
   }, [])
 
   if (!prediction) {

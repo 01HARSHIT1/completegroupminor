@@ -31,7 +31,11 @@ export default function ControlPage() {
       (status: { status: string }) => setPumpStatus(status.status as 'ON' | 'OFF')
     )
 
-    return () => ws.close()
+    return () => {
+      if (ws && ws.close) {
+        ws.close()
+      }
+    }
   }, [])
 
   const handlePumpToggle = async () => {

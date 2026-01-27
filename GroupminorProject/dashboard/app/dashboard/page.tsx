@@ -44,7 +44,11 @@ export default function DashboardPage() {
       () => {}
     )
 
-    return () => ws.close()
+    return () => {
+      if (ws && ws.close) {
+        ws.close()
+      }
+    }
   }, [])
 
   if (!sensorData || !prediction) {

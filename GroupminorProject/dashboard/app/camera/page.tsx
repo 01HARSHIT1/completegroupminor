@@ -24,7 +24,11 @@ export default function CameraPage() {
       () => {}
     )
 
-    return () => ws.close()
+    return () => {
+      if (ws && ws.close) {
+        ws.close()
+      }
+    }
   }, [])
 
   return (
