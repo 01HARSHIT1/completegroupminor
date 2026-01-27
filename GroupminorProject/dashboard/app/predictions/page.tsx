@@ -1,185 +1,105 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertTriangle, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
-
-interface Prediction {
-  condition: string
-  conditionCode: number
-  confidence: number
-  failureProbability: number
-  healthScore: number
-  performanceEfficiency: number
-  alerts: string[]
-  recommendations: string[]
-}
+import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer } from 'recharts'
+import { getPredictions, createWebSocketConnection, type Prediction } from '@/lib/api'
+import { AlertTriangle } from 'lucide-react'
 
 export default function PredictionsPage() {
-  const [prediction, setPrediction] = useState<Prediction>({
-    condition: 'Normal',
-    conditionCode: 0,
-    confidence: 0.95,
-    failureProbability: 0.05,
-    healthScore: 92,
-    performanceEfficiency: 88,
-    alerts: [],
-    recommendations: ['System operating normally', 'Continue regular monitoring'],
-  })
+  const [prediction, setPrediction] = useState<Prediction | null>(null)
+  const [failureHistory, setFailureHistory] = useState<any[]>([])
 
   useEffect(() => {
-    // Simulate ML prediction updates
-    const interval = setInterval(() => {
-      // In production, this would fetch from ML API
-      const conditions = ['Normal', 'Leakage Detected', 'Blockage Suspected', 'Failure Risk High']
-      const randomCondition = conditions[Math.floor(Math.random() * 4)]
-      
-      setPrediction({
-        condition: randomCondition,
-        conditionCode: conditions.indexOf(randomCondition),
-        confidence: 0.85 + Math.random() * 0.1,
-        failureProbability: randomCondition === 'Failure Risk High' ? 0.3 + Math.random() * 0.2 : Math.random() * 0.1,
-        healthScore: randomCondition === 'Normal' ? 90 + Math.random() * 5 : 70 + Math.random() * 10,
-        performanceEfficiency: 80 + Math.random() * 15,
-        alerts: randomCondition !== 'Normal' ? [`⚠️ ${randomCondition}`] : [],
-        recommendations: getRecommendations(randomCondition),
-      })
-    }, 5000)
+    const fetchData = async () => {
+      try {
+        const pred = await getPredictions()
+        setPrediction(pred)
+      } catch (error) {
+        console.error('Failed to fetch predictions:', error)
+      }
+    }
 
-    return () => clearInterval(interval)
+    fetchData()
+
+    const ws = createWebSocketConnection(
+      () => {},
+      (pred: Prediction) => {
+        setPrediction(pred)
+        setFailureHistory(prev => [...prev.slice(-20), {
+          time: new Date().toLocaleTimeString(),
+          probability: pred.failure_probability * 100
+        }])
+      },
+      () => {}
+    )
+
+    return () => ws.close()
   }, [])
 
-  const getRecommendations = (condition: string): string[] => {
-    switch (condition) {
-      case 'Leakage Detected':
-        return ['Check irrigation pipes for leaks', 'Inspect connection points', 'Monitor water level closely']
-      case 'Blockage Suspected':
-        return ['Clean irrigation pipes', 'Check drip channels', 'Inspect filter system']
-      case 'Failure Risk High':
-        return ['Schedule maintenance immediately', 'Reduce pump load', 'Monitor temperature closely']
-      default:
-        return ['System operating normally', 'Continue regular monitoring']
-    }
-  }
-
-  const getStatusColor = (code: number) => {
-    switch (code) {
-      case 0: return 'text-green-600 bg-green-50'
-      case 1: return 'text-yellow-600 bg-yellow-50'
-      case 2: return 'text-orange-600 bg-orange-50'
-      case 3: return 'text-red-600 bg-red-50'
-      default: return 'text-gray-600 bg-gray-50'
-    }
-  }
-
-  const getStatusIcon = (code: number) => {
-    switch (code) {
-      case 0: return <CheckCircle className="w-6 h-6" />
-      case 1: return <AlertCircle className="w-6 h-6" />
-      case 2: return <AlertTriangle className="w-6 h-6" />
-      case 3: return <XCircle className="w-6 h-6" />
-      default: return <AlertCircle className="w-6 h-6" />
-    }
+  if (!prediction) {
+    return <div className="flex items-center justify-center min-h-screen bg-slate-900 text-white">Loading...</div>
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
+    <main className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-6">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-800 mb-6">ML Predictions & Alerts</h1>
+        <h1 className="text-2xl font-bold text-white mb-6">SMART IRRIGATION DIGITAL TWIN - Predictions</h1>
 
-        {/* Main Prediction Card */}
-        <div className="bg-white rounded-lg shadow-md p-8 mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-semibold text-gray-800">Current System Status</h2>
-            <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${getStatusColor(prediction.conditionCode)}`}>
-              {getStatusIcon(prediction.conditionCode)}
-              <span className="font-semibold">{prediction.condition}</span>
+        <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+          {/* Pump Health Stats */}
+          <div className="mb-6">
+            <h2 className="text-white font-semibold mb-4">Pump Health:</h2>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-red-600 text-white px-4 py-3 rounded-lg text-center">
+                <p className="text-2xl font-bold">{Math.round(prediction.health_score)}%</p>
+                <p className="text-sm">Health Score</p>
+              </div>
+              <div className="bg-green-600 text-white px-4 py-3 rounded-lg text-center">
+                <p className="text-2xl font-bold">{Math.round(prediction.performance_efficiency)}%</p>
+                <p className="text-sm">Efficiency</p>
+              </div>
+              <div className="bg-blue-600 text-white px-4 py-3 rounded-lg text-center">
+                <p className="text-2xl font-bold">3-5 Hours</p>
+                <p className="text-sm">Est. Time</p>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <PredictionMetric
-              title="Health Score"
-              value={`${Math.round(prediction.healthScore)}%`}
-              color={prediction.healthScore > 80 ? 'text-green-600' : prediction.healthScore > 60 ? 'text-yellow-600' : 'text-red-600'}
-            />
-            <PredictionMetric
-              title="Performance Efficiency"
-              value={`${Math.round(prediction.performanceEfficiency)}%`}
-              color="text-blue-600"
-            />
-            <PredictionMetric
-              title="Failure Probability"
-              value={`${(prediction.failureProbability * 100).toFixed(1)}%`}
-              color={prediction.failureProbability > 0.2 ? 'text-red-600' : 'text-green-600'}
-            />
-            <PredictionMetric
-              title="Confidence"
-              value={`${(prediction.confidence * 100).toFixed(1)}%`}
-              color="text-purple-600"
-            />
+          {/* Failure Probability Chart */}
+          <div className="mb-6">
+            <h3 className="text-white font-semibold mb-2">Failure Probability:</h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={failureHistory}>
+                <Area 
+                  type="monotone" 
+                  dataKey="probability" 
+                  stroke="#3b82f6" 
+                  fill="#3b82f6" 
+                  fillOpacity={0.3} 
+                />
+                <XAxis dataKey="time" stroke="#94a3b8" />
+                <YAxis stroke="#94a3b8" />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
-        </div>
 
-        {/* Alerts */}
-        {prediction.alerts.length > 0 && (
-          <div className="bg-red-50 border-l-4 border-red-500 p-6 mb-8 rounded-lg">
-            <h3 className="text-lg font-semibold text-red-800 mb-4 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" />
-              Active Alerts
-            </h3>
-            <ul className="space-y-2">
-              {prediction.alerts.map((alert, index) => (
-                <li key={index} className="text-red-700">{alert}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Recommendations */}
-        <div className="bg-blue-50 border-l-4 border-blue-500 p-6 rounded-lg">
-          <h3 className="text-lg font-semibold text-blue-800 mb-4">Recommendations</h3>
-          <ul className="space-y-2">
-            {prediction.recommendations.map((rec, index) => (
-              <li key={index} className="text-blue-700 flex items-start gap-2">
-                <span className="text-blue-500 mt-1">•</span>
-                <span>{rec}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Prediction Details */}
-        <div className="mt-8 bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-xl font-semibold text-gray-800 mb-4">Prediction Details</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-gray-600">Condition Code:</span>
-              <span className="ml-2 font-semibold">{prediction.conditionCode}</span>
-            </div>
-            <div>
-              <span className="text-gray-600">Model Confidence:</span>
-              <span className="ml-2 font-semibold">{(prediction.confidence * 100).toFixed(2)}%</span>
-            </div>
-            <div>
-              <span className="text-gray-600">Last Updated:</span>
-              <span className="ml-2 font-semibold">{new Date().toLocaleString()}</span>
-            </div>
-            <div>
-              <span className="text-gray-600">Prediction Model:</span>
-              <span className="ml-2 font-semibold">Random Forest + LSTM</span>
-            </div>
+          {/* Alerts */}
+          <div className="space-y-3">
+            {prediction.leakage_detected && (
+              <div className="bg-orange-600 text-white px-4 py-3 rounded-lg flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5" />
+                <span>⚠ Leakage Detected:</span>
+              </div>
+            )}
+            {prediction.blockage_detected && (
+              <div className="bg-orange-600 text-white px-4 py-3 rounded-lg flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5" />
+                <span>⚠ Blockage Suspected:</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
     </main>
-  )
-}
-
-function PredictionMetric({ title, value, color }: { title: string; value: string; color: string }) {
-  return (
-    <div>
-      <h3 className="text-sm font-medium text-gray-600 mb-2">{title}</h3>
-      <p className={`text-3xl font-bold ${color}`}>{value}</p>
-    </div>
   )
 }

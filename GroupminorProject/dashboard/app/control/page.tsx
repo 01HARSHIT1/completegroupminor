@@ -1,84 +1,114 @@
 'use client'
 
-import { useState } from 'react'
-import { Power, Play, Square } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { getSensorData, getPumpStatus, turnPumpOn, turnPumpOff, createWebSocketConnection, type SensorData } from '@/lib/api'
+import { Power, Clock, Calendar } from 'lucide-react'
 
 export default function ControlPage() {
   const [pumpStatus, setPumpStatus] = useState<'ON' | 'OFF'>('OFF')
+  const [sensorData, setSensorData] = useState<SensorData | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
-  const togglePump = async () => {
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [status, sensors] = await Promise.all([
+          getPumpStatus(),
+          getSensorData()
+        ])
+        setPumpStatus(status.pump_status as 'ON' | 'OFF')
+        setSensorData(sensors)
+      } catch (error) {
+        console.error('Failed to fetch data:', error)
+      }
+    }
+
+    fetchData()
+
+    const ws = createWebSocketConnection(
+      (data: SensorData) => setSensorData(data),
+      () => {},
+      (status: { status: string }) => setPumpStatus(status.status as 'ON' | 'OFF')
+    )
+
+    return () => ws.close()
+  }, [])
+
+  const handlePumpToggle = async () => {
     setIsLoading(true)
-    // In production, this would call the API to control the pump
-    setTimeout(() => {
-      setPumpStatus(prev => prev === 'ON' ? 'OFF' : 'ON')
+    try {
+      if (pumpStatus === 'ON') {
+        await turnPumpOff()
+        setPumpStatus('OFF')
+      } else {
+        await turnPumpOn()
+        setPumpStatus('ON')
+      }
+    } catch (error) {
+      console.error('Failed to toggle pump:', error)
+    } finally {
       setIsLoading(false)
-    }, 1000)
+    }
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-800 mb-6">Pump Control</h1>
+    <main className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-6">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-2xl font-bold text-white mb-6">SMART IRRIGATION DIGITAL TWIN - Controls</h1>
 
-        <div className="bg-white rounded-lg shadow-md p-8">
-          <div className="text-center">
-            <div className={`inline-flex items-center justify-center w-32 h-32 rounded-full mb-6 ${
-              pumpStatus === 'ON' ? 'bg-green-100' : 'bg-gray-100'
-            }`}>
-              <Power className={`w-16 h-16 ${
-                pumpStatus === 'ON' ? 'text-green-600' : 'text-gray-400'
-              }`} />
-            </div>
-
-            <h2 className="text-2xl font-semibold text-gray-800 mb-2">
-              Pump Status: <span className={pumpStatus === 'ON' ? 'text-green-600' : 'text-gray-600'}>
-                {pumpStatus}
-              </span>
-            </h2>
-
-            <p className="text-gray-600 mb-8">
-              {pumpStatus === 'ON' 
-                ? 'Pump is currently running and delivering water to irrigation system'
-                : 'Pump is currently stopped'}
-            </p>
-
+        <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+          {/* Pump Control Buttons */}
+          <div className="flex gap-4 mb-6">
             <button
-              onClick={togglePump}
+              onClick={handlePumpToggle}
               disabled={isLoading}
-              className={`px-8 py-4 rounded-lg font-semibold text-white transition-all ${
+              className={`flex-1 px-6 py-4 rounded-lg font-bold text-white transition-all ${
                 pumpStatus === 'ON'
                   ? 'bg-red-600 hover:bg-red-700'
                   : 'bg-green-600 hover:bg-green-700'
-              } disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mx-auto`}
+              } disabled:opacity-50`}
             >
-              {isLoading ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Processing...
-                </>
-              ) : pumpStatus === 'ON' ? (
-                <>
-                  <Square className="w-5 h-5" />
-                  Turn Pump OFF
-                </>
-              ) : (
-                <>
-                  <Play className="w-5 h-5" />
-                  Turn Pump ON
-                </>
-              )}
+              {isLoading ? 'Processing...' : pumpStatus === 'ON' ? 'PUMP OFF' : 'PUMP ON'}
             </button>
           </div>
 
-          <div className="mt-8 pt-8 border-t border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Control Information</h3>
-            <div className="space-y-2 text-sm text-gray-600">
-              <p>• Remote control via mobile app and web dashboard</p>
-              <p>• Pump status is synchronized across all devices</p>
-              <p>• Safety checks are performed before pump activation</p>
-              <p>• Automatic shutdown on fault detection</p>
+          {/* Current Readings */}
+          {sensorData && (
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="bg-slate-700 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-white mb-2">
+                  <span>💧</span>
+                  <span className="font-semibold">Current Flow</span>
+                </div>
+                <p className="text-2xl font-bold text-white">{sensorData.flow_rate_Lmin.toFixed(1)} L/min</p>
+              </div>
+              <div className="bg-slate-700 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-white mb-2">
+                  <span>🌡️</span>
+                  <span className="font-semibold">Motor Temp</span>
+                </div>
+                <p className="text-2xl font-bold text-white">{sensorData.temperature_C.toFixed(1)} °C</p>
+              </div>
+              <div className="bg-slate-700 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-white mb-2">
+                  <span>💧</span>
+                  <span className="font-semibold">Water Level</span>
+                </div>
+                <p className="text-2xl font-bold text-white">{Math.round((sensorData.tank_level_cm / 50) * 100)}%</p>
+              </div>
             </div>
+          )}
+
+          {/* Scheduling Options */}
+          <div className="flex gap-4">
+            <button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold flex items-center justify-center gap-2">
+              <Clock className="w-5 h-5" />
+              Set Timer
+            </button>
+            <button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold flex items-center justify-center gap-2">
+              <Calendar className="w-5 h-5" />
+              Irrigation Schedule
+            </button>
           </div>
         </div>
       </div>
