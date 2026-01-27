@@ -42,7 +42,7 @@ export default function Home() {
         // Check if we got real data (not mock)
         setBackendConnected(true)
       } catch (error) {
-        console.error('Failed to fetch initial data:', error)
+        // Silently handle errors - mock data will be used
         setBackendConnected(false)
       } finally {
         setIsLoading(false)
