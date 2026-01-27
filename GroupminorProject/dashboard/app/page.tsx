@@ -19,11 +19,14 @@ export default function Home() {
     condition: 'Normal',
     alerts: 0,
   })
+  const [isLoading, setIsLoading] = useState(true)
+  const [backendConnected, setBackendConnected] = useState(false)
 
   useEffect(() => {
     // Initial data fetch
     const fetchInitialData = async () => {
       try {
+        setIsLoading(true)
         const [sensorData, prediction] = await Promise.all([
           getSensorData(),
           getPredictions()
@@ -35,20 +38,27 @@ export default function Home() {
           condition: prediction.condition,
           alerts: prediction.alerts.length,
         })
+        
+        // Check if we got real data (not mock)
+        setBackendConnected(true)
       } catch (error) {
         console.error('Failed to fetch initial data:', error)
+        setBackendConnected(false)
+      } finally {
+        setIsLoading(false)
       }
     }
 
     fetchInitialData()
 
-    // WebSocket connection for real-time updates
+    // WebSocket connection for real-time updates (with fallback)
     const ws = createWebSocketConnection(
       (sensorData: SensorData) => {
         setStatus(prev => ({
           ...prev,
           pumpStatus: sensorData.pump_status,
         }))
+        setBackendConnected(true)
       },
       (prediction: Prediction) => {
         setStatus({
@@ -57,6 +67,7 @@ export default function Home() {
           condition: prediction.condition,
           alerts: prediction.alerts.length,
         })
+        setBackendConnected(true)
       },
       (pumpStatus: { status: string }) => {
         setStatus(prev => ({
@@ -67,7 +78,9 @@ export default function Home() {
     )
 
     return () => {
-      ws.close()
+      if (ws && ws.close) {
+        ws.close()
+      }
     }
   }, [])
 
@@ -82,69 +95,88 @@ export default function Home() {
           <p className="text-gray-600">
             Real-time monitoring and predictive maintenance system
           </p>
+          {!backendConnected && (
+            <div className="mt-2 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-3 rounded">
+              <p className="text-sm">
+                ⚠️ Backend server not connected. Displaying demo data. 
+                <Link href="/VERCEL_SETTINGS.md" className="underline ml-1">Configure backend URL</Link>
+              </p>
+            </div>
+          )}
         </div>
 
-        {/* Status Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <StatusCard
-            title="Pump Status"
-            value={status.pumpStatus}
-            icon={<Activity className="w-6 h-6" />}
-            color={status.pumpStatus === 'ON' ? 'text-green-600' : 'text-gray-600'}
-          />
-          <StatusCard
-            title="Health Score"
-            value={`${Math.round(status.healthScore)}%`}
-            icon={<Droplet className="w-6 h-6" />}
-            color={status.healthScore > 80 ? 'text-green-600' : 'text-orange-600'}
-          />
-          <StatusCard
-            title="Condition"
-            value={status.condition}
-            icon={<AlertTriangle className="w-6 h-6" />}
-            color="text-blue-600"
-          />
-          <StatusCard
-            title="Active Alerts"
-            value={status.alerts.toString()}
-            icon={<AlertTriangle className="w-6 h-6" />}
-            color={status.alerts > 0 ? 'text-red-600' : 'text-gray-600'}
-          />
-        </div>
+        {isLoading ? (
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <div className="w-16 h-16 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading dashboard...</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Status Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+              <StatusCard
+                title="Pump Status"
+                value={status.pumpStatus}
+                icon={<Activity className="w-6 h-6" />}
+                color={status.pumpStatus === 'ON' ? 'text-green-600' : 'text-gray-600'}
+              />
+              <StatusCard
+                title="Health Score"
+                value={`${Math.round(status.healthScore)}%`}
+                icon={<Droplet className="w-6 h-6" />}
+                color={status.healthScore > 80 ? 'text-green-600' : 'text-orange-600'}
+              />
+              <StatusCard
+                title="Condition"
+                value={status.condition}
+                icon={<AlertTriangle className="w-6 h-6" />}
+                color="text-blue-600"
+              />
+              <StatusCard
+                title="Active Alerts"
+                value={status.alerts.toString()}
+                icon={<AlertTriangle className="w-6 h-6" />}
+                color={status.alerts > 0 ? 'text-red-600' : 'text-gray-600'}
+              />
+            </div>
 
-        {/* Navigation Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <NavCard
-            href="/dashboard"
-            title="Live Dashboard"
-            description="Real-time sensor data and pump status"
-            icon={<Activity className="w-8 h-8" />}
-          />
-          <NavCard
-            href="/analytics"
-            title="Analytics"
-            description="Historical data and performance graphs"
-            icon={<Droplet className="w-8 h-8" />}
-          />
-          <NavCard
-            href="/predictions"
-            title="Predictions"
-            description="ML-based fault detection and alerts"
-            icon={<AlertTriangle className="w-8 h-8" />}
-          />
-          <NavCard
-            href="/camera"
-            title="Camera Feed"
-            description="Live irrigation monitoring"
-            icon={<Camera className="w-8 h-8" />}
-          />
-          <NavCard
-            href="/control"
-            title="Pump Control"
-            description="Remote pump ON/OFF control"
-            icon={<Settings className="w-8 h-8" />}
-          />
-        </div>
+            {/* Navigation Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <NavCard
+                href="/dashboard"
+                title="Live Dashboard"
+                description="Real-time sensor data and pump status"
+                icon={<Activity className="w-8 h-8" />}
+              />
+              <NavCard
+                href="/analytics"
+                title="Analytics"
+                description="Historical data and performance graphs"
+                icon={<Droplet className="w-8 h-8" />}
+              />
+              <NavCard
+                href="/predictions"
+                title="Predictions"
+                description="ML-based fault detection and alerts"
+                icon={<AlertTriangle className="w-8 h-8" />}
+              />
+              <NavCard
+                href="/camera"
+                title="Camera Feed"
+                description="Live irrigation monitoring"
+                icon={<Camera className="w-8 h-8" />}
+              />
+              <NavCard
+                href="/control"
+                title="Pump Control"
+                description="Remote pump ON/OFF control"
+                icon={<Settings className="w-8 h-8" />}
+              />
+            </div>
+          </>
+        )}
       </div>
     </main>
   )
