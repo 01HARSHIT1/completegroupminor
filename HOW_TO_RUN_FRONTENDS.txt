@@ -1,0 +1,10 @@
+HOW TO RUN DASHBOARD
+===================
+
+Dashboard (Vite): http://localhost:5173
+
+In PowerShell:
+  cd C:\CodeData\completeminorgroupproject\GroupminorProject
+  .\RUN_FRONTEND_2_VITE.ps1   (or .\RUN_FRONTEND_2_VITE.bat)
+
+Or: cd frontend && npm run dev

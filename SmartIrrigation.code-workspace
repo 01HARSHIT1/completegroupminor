@@ -1,0 +1,15 @@
+{
+  "folders": [
+    {
+      "name": "Project root",
+      "path": "."
+    },
+    {
+      "name": "ESP32 Firmware",
+      "path": "esp32-firmware"
+    }
+  ],
+  "settings": {
+    "window.menuBarVisibility": "classic"
+  }
+}

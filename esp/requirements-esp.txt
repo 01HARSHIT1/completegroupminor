@@ -1,0 +1,7 @@
+# ESP board development - Python tools (optional)
+# Use when you need esptool or pyserial for command-line flashing
+# PlatformIO bundles these; this file is for standalone use.
+
+esptool>=4.0
+pyserial>=3.5
+adafruit-ampy>=1.1.0

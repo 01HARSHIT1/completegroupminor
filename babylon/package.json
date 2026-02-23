@@ -1,0 +1,15 @@
+{
+  "name": "smart-irrigation-babylon-backend",
+  "version": "1.0.0",
+  "description": "Backend 4 - Data processing and data transfer for Babylon / Digital Twin visualization",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  }
+}
