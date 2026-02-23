@@ -10,8 +10,7 @@ import { HistoricalAnalytics } from "./components/HistoricalAnalytics";
 import { DigitalTwinVisualization } from "./components/DigitalTwinVisualization";
 import { SystemStatus } from "./components/SystemStatus";
 import { Zap, Thermometer, Activity, Droplet, Gauge } from "lucide-react";
-import { Toaster } from "./components/ui/sonner";
-import { toast } from "sonner";
+import { Toaster, toast } from "sonner";
 import {
   getSensorData,
   getPredictions,
