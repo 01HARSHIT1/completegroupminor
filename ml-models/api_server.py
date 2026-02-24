@@ -1,7 +1,12 @@
 """
-Python API Server for ML Predictions
-Can be called by Node.js backend via HTTP.
-Uses Pump Health API (pump_dataset_generator) for real-time pump health.
+[OPTIONAL / DEPRECATED]
+Python ML API - standalone server for ML predictions.
+
+The main backend (Node.js) now runs AIML using TensorFlow.js - no Python needed.
+This server is kept for:
+- Standalone Python ML testing
+- Pump Health API (5003) integration if you prefer Python models
+- Fallback when main backend is not using TF.js
 """
 
 from flask import Flask, request, jsonify
@@ -149,5 +154,8 @@ def rule_based_prediction(sensor_data):
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
-    print(f"Starting ML Prediction API server on port {port}")
+    print("=" * 50)
+    print("Python ML API (optional - main backend uses TensorFlow.js)")
+    print("=" * 50)
+    print(f"Starting on port {port}")
     app.run(host='0.0.0.0', port=port, debug=True)

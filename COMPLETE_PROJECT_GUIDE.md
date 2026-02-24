@@ -2,41 +2,48 @@
 
 ## 🎯 Project Summary
 
-You are building a **Digital Twin of an Irrigation System** that combines:
+A **Digital Twin of an Irrigation System** that combines:
 
 | Component | Purpose |
 |-----------|---------|
 | **Physical Setup** | Motor pump, water container, plastic farm model, plant models |
-| **ESP32/Arduino** | Reads sensors (current, vibration, temperature, flow) and controls pump |
-| **Dashboard** | Real-time device data, motor health, live camera, pump control |
-| **AI/ML Model** | Detects leakage, blockage, faults, failure; calculates component health |
-| **Babylon.js** | 3D Digital Twin model synced with real-time data |
+| **ESP32** | Flow sensor, voltage divider; sends via WiFi, Serial (USB), or Ethernet |
+| **Dashboard** | Real-time sensors, motor health, camera, pump control (Vite+React) |
+| **AIML** | Runs in **Node.js backend** via TensorFlow.js (no Python required by default) |
+| **Babylon** | Twin state aggregation for 3D visualization |
 
 ---
 
-## 📁 TARGET FOLDER STRUCTURE (What You Want)
+## 📁 FOLDER STRUCTURE
 
 ```
-completeminorgroupproject/
-└── minorgroupproject/
-    ├── frontend/              ← Dashboard (React/Next.js/Vite)
-    ├── smartirrigation/       ← ESP32 firmware (Arduino/PlatformIO)
-    ├── aiml_model/            ← AI/ML training + inference API
-    ├── backend/               ← Central API (Node.js)
-    └── babylon/               ← Babylon backend + (optional) 3D client
+GroupminorProject/
+├── frontend/                  ← Dashboard (Vite+React, port 5173)
+├── esp/                       ← ESP32 firmware (PlatformIO)
+│   ├── src/main.cpp           ← Full sensor firmware
+│   └── flow_sensor_to_backend/← Flow sensor (WiFi/Serial/Ethernet)
+├── backend/                   ← Central API (port 5000) + AIML (TensorFlow.js)
+│   ├── modules/               ← config, store, csvSimulation, websocket, routes
+│   └── ml/predictor.js        ← AIML predictor
+├── babylon/                   ← Digital twin backend (port 5004)
+├── shared/                    ← apiClient, config (used by scripts, babylon)
+├── ml-models/                 ← Optional Python ML API (port 5001)
+└── pump_dataset_generator/    ← Pump Health API (port 5003)
 ```
 
 ---
 
-## 📂 CURRENT → TARGET MAPPING (GroupminorProject)
+## 📂 FOLDER MAPPING
 
-| Target Folder | Current Location | Purpose |
-|---------------|------------------|---------|
-| **frontend** | `GroupminorProject/frontend/` | Dashboard UI (Vite+React): sensor charts, pump control, camera, predictions |
-| **esp** | `GroupminorProject/esp/` | ESP32 firmware: sensor reads, HTTP POST to backend, pump relay control |
-| **aiml_model** | `GroupminorProject/ml-models/` + `GroupminorProject/pump_dataset_generator/` | ML API, Pump Health API (LEVEL1_LEVEL2 model) |
-| **backend** | `GroupminorProject/backend/` | Central API: sensors, pump control, ML proxy, WebSocket |
-| **babylon** | `GroupminorProject/babylon/` | Digital Twin data aggregation; fetches from backend, exposes `/api/twin/state` |
+| Folder | Purpose |
+|--------|---------|
+| **frontend** | Dashboard (Vite+React): sensors, pump control, camera, AI predictions, digital twin viz |
+| **esp** | ESP32 firmware: full sensors or flow-only; WiFi / Serial (USB) / Ethernet transport |
+| **backend** | Central API + **AIML (TensorFlow.js)** — no Python required by default |
+| **babylon** | Twin state aggregation; uses `shared/apiClient` to fetch from backend |
+| **shared** | `apiClient`, `config` — send/receive data from scripts, serial bridge, babylon |
+| **ml-models** | Optional Python ML API (port 5001) — superseded by backend TF.js |
+| **pump_dataset_generator** | Pump Health API (port 5003); optional |
 
 ---
 
@@ -51,32 +58,31 @@ completeminorgroupproject/
 
 ---
 
-### 2. SMARTIRRIGATION (ESP32 Firmware)
+### 2. ESP32 (Firmware)
 
 | File/Folder | Purpose |
 |-------------|---------|
-| `esp/src/main.cpp` | Main firmware: WiFi, HTTP POST to backend, sensor reads |
-| `esp/platformio.ini` | PlatformIO config |
-| `hardware/esp32_firmware/esp32_firmware.ino` | Arduino sketch (alternative to PlatformIO) |
+| `esp/src/main.cpp` | Full sensor firmware: current, vibration, temp, flow, tank, pH, turbidity |
+| `esp/flow_sensor_to_backend/` | Flow-only firmware: WiFi, Serial (USB), or Ethernet transport |
+| `esp/flow_sensor_to_backend/serial_to_backend.js` | PC bridge: reads Serial JSON, POSTs to backend (uses `shared/apiClient`) |
 
-**Data sent:** `current_A`, `vibration_rms`, `temperature_C`, `flow_rate_Lmin`, `tank_level_cm`, `ph_value`, `turbidity_NTU`, `pump_status`, `pump_runtime_min`  
-**Control:** Backend sends pump ON/OFF; ESP listens (MQTT or HTTP polling in future).
+**Flow sensor transport:** `pio run -e wifi` \| `serial` \| `wifi_and_serial` \| `ethernet`  
+**Data buffering:** 3 samples per window (1–3s, 4–6s…) → mean → one CSV row → POST to API  
+**CSV format:** `Time(ms),FlowRate,DividerV,DividerOK` (matches flowdata.csv)
 
 ---
 
-### 3. AIML MODEL (AI/ML Engine)
+### 3. AIML (AI/ML)
 
 | File/Folder | Purpose |
 |-------------|---------|
-| `pump_dataset_generator/` | Dataset + training for pump health |
-| `pump_dataset_generator/LEVEL1_LEVEL2_PUMP_DATASET_IMPROVED.csv` | **Your dataset** — time, current, temperature, vibration, flow, health, rul, label (0=Healthy, 1=Warning, 2=Fault) |
-| `pump_dataset_generator/generate_level12_dataset.py` | Generates synthetic pump dataset |
-| `pump_dataset_generator/model_pump_gru.py` | GRU model definition (4 inputs → 3 classes) |
-| `pump_dataset_generator/realtime_predictor.py` | Real-time prediction from 50-sample window |
-| `pump_dataset_generator/pump_api.py` | **Pump Health API** (port 5003) — used by ML API |
-| `pump_dataset_generator/train_model.py` | Train GRU on LEVEL1_LEVEL2 dataset |
-| `ml-models/api_server.py` | **ML API** (port 5001) — called by backend; calls Pump API (5003) or GRU API (5002) |
-| `ml-models/predict.py` | Rule-based / model-based predictor |
+| **`backend/ml/predictor.js`** | **Main AIML** — TensorFlow.js + rule-based; runs in Node.js (no Python) |
+| `backend/ml/models/` | Optional: place converted TF.js model here (`model.json` + `.bin`) |
+| `ml-models/api_server.py` | Optional Python ML API (port 5001) — superseded by backend TF.js |
+| `pump_dataset_generator/pump_api.py` | Pump Health API (port 5003) — optional |
+| `pump_dataset_generator/` | Dataset, GRU training, LEVEL1_LEVEL2 model |
+
+**Default:** Backend uses rule-based prediction (leakage, blockage, failure risk). Add TF.js model for ML.
 
 ---
 
@@ -84,12 +90,17 @@ completeminorgroupproject/
 
 | File/Folder | Purpose |
 |-------------|---------|
-| `backend/index.js` | Express + Socket.IO: `/api/sensors`, `/api/predictions`, `/api/pump/on`, `/api/pump/off`, WebSocket |
-| `backend/scripts/generate_dummy_sensors.js` | Dummy sensor data for testing |
-| `backend/data/dummy_sensor_data.csv` | CSV for simulation when no ESP connected |
+| `backend/index.js` | Express + Socket.IO; loads modules |
+| `backend/modules/config.js` | PORT, CSV path, defaults |
+| `backend/modules/store.js` | In-memory state: sensors, history, predictions |
+| `backend/modules/csvSimulation.js` | Load/start/stop CSV simulation |
+| `backend/modules/websocket.js` | Socket.IO setup, broadcast helpers |
+| `backend/modules/routes.js` | API route handlers |
+| `backend/ml/predictor.js` | AIML (TensorFlow.js + rule-based) |
+| `backend/data/dummy_sensor_data.csv` | CSV for simulation when no ESP |
 
 **Port:** 5000  
-**Flow:** ESP → POST `/api/sensors` → Backend stores → Calls ML API (5001) → Stores predictions → WebSocket to dashboard.
+**Flow:** ESP → POST `/api/sensors` → Backend merge → **AIML in Node.js** → WebSocket to dashboard.
 
 ---
 
@@ -97,13 +108,30 @@ completeminorgroupproject/
 
 | File/Folder | Purpose |
 |-------------|---------|
-| `babylon/index.js` | Fetches sensors + predictions from backend (5000), exposes `GET /api/twin/state` |
-| `babylon/` | **Backend only** — aggregates twin state; does not render 3D |
+| `babylon/index.js` | Uses `shared/apiClient` (getSensors, getPredictions) → exposes `GET /api/twin/state` |
 
 **Port:** 5004  
-**Flow:** Polls backend every 1s → Dashboard or Babylon.js 3D client calls `/api/twin/state` → Uses data for 3D scene (pump color, water animation).
+**Flow:** Polls backend every 1s → Dashboard calls `GET /api/twin/state` → Uses data for 3D viz.
 
-**Note:** The actual Babylon.js 3D scene (pump, pipes, farm, water animation) is **to be built** — either inside the dashboard app or as a separate frontend that consumes `GET /api/twin/state`.
+---
+
+### 6. SHARED (Modules)
+
+| File/Folder | Purpose |
+|-------------|---------|
+| `shared/config.js` | BACKEND_URL, BABYLON_URL, API_PATHS, getBackendUrl(), getBabylonUrl() |
+| `shared/apiClient.js` | postSensors, postSensorsRaw, getSensors, getPredictions, getPumpStatus, postPumpOn, postPumpOff, getStats, getTwinState |
+
+**Used by:** `send_test_sensor_data.js`, `serial_to_backend.js`, `babylon/`
+
+---
+
+### 7. FRONTEND API MODULES
+
+| File/Folder | Purpose |
+|-------------|---------|
+| `frontend/src/lib/api/` | Modular API: sensors, predictions, pump, realtime, twin |
+| `frontend/src/lib/api/index.ts` | Re-exports all; import `from "@/lib/api"` |
 
 ---
 
@@ -111,10 +139,10 @@ completeminorgroupproject/
 
 | Port | Service | Folder |
 |------|---------|--------|
-| 5173 | Dashboard (Vite) | frontend / designfrontcode |
-| 5000 | Backend (Central API) | backend |
-| 5001 | ML API (predictions) | aiml_model / ml-models |
-| 5003 | Pump Health API | aiml_model / pump_dataset_generator |
+| 5173 | Dashboard (Vite) | frontend |
+| 5000 | Backend (Central API + AIML) | backend |
+| 5001 | ML API (optional Python) | ml-models |
+| 5003 | Pump Health API (optional) | pump_dataset_generator |
 | 5004 | Babylon / Twin Backend | babylon |
 
 ---
@@ -139,99 +167,124 @@ completeminorgroupproject/
 ## 🔷 DATA FLOW (End-to-End)
 
 ```
-ESP32 (sensors + pump) 
-    → HTTP POST /api/sensors → Backend (5000)
-    → Backend calls ML API (5001)
-    → ML API calls Pump API (5003) with current, temp, vib, flow
-    → Pump API returns: condition (Healthy/Warning/Fault), health_score
+ESP32 (WiFi / Serial bridge / Ethernet)
+    → POST /api/sensors → Backend (5000)
+    → Backend: AIML (TensorFlow.js or rule-based) in Node.js
     → Backend stores prediction, WebSocket → Dashboard
-    → Babylon backend (5004) polls backend → GET /api/twin/state
-    → Dashboard / 3D client uses twin state for visualization
+    → Babylon (5004) polls backend via shared/apiClient → GET /api/twin/state
+    → Dashboard uses twin state for 3D viz
+
+Optional: Python ML API (5001), Pump API (5003) — not required by default.
 ```
 
 ---
 
-## 🔷 STEP-BY-STEP IMPLEMENTATION (For AI/Software Engineer)
+## 🔷 STEP-BY-STEP IMPLEMENTATION
 
-### Phase 1: Reorganize Folders (Optional)
-
-1. Create target structure under `completeminorgroupproject/minorgroupproject/`:
-   - `frontend` ← Dashboard (Vite+React)
-   - `esp` ← ESP32 firmware
-   - `aiml_model` ← ml-models + pump_dataset_generator
-   - `backend` ← Central API
-   - `babylon` ← Digital twin backend
-
-2. Update all configs (API URLs, paths) to match new structure.
-
-### Phase 2: Hardware + ESP Communication
-
-1. Flash ESP32 with `esp` (PlatformIO or Arduino).
-2. Set `WIFI_SSID`, `WIFI_PASSWORD`, `BACKEND_URL` (e.g. `http://<PC_IP>:5000`).
-3. Ensure backend (5000) is running; ESP sends POST to `/api/sensors` every 2s.
-4. If no ESP: use CSV simulation via `send_test_sensor_data.js` or dummy CSV.
-
-### Phase 3: Backend + Dashboard
+### Phase 1: Backend + Dashboard
 
 1. `cd backend && npm install && npm start` (port 5000).
 2. `cd frontend && npm install && npm run dev` (port 5173).
-3. Verify: sensor data appears, pump control works (simulated or relay).
+3. AIML runs in backend (TensorFlow.js or rule-based) — no Python needed.
 
-### Phase 4: AI/ML Integration
+### Phase 2: ESP32 / Test Data
 
-1. Train model (if needed):
-   ```bash
-   cd pump_dataset_generator
-   python generate_level12_dataset.py   # if dataset missing
-   python train_model.py                 # train GRU
-   ```
-2. Start Pump Health API: `python pump_api.py` (port 5003).
-3. Start ML API: `cd ml-models && python api_server.py` (port 5001).
-4. Backend auto-connects to ML API; predictions flow to dashboard.
+**Option A — WiFi:** `cd esp/flow_sensor_to_backend && pio run -e wifi`  
+Set `WIFI_SSID`, `WIFI_PASSWORD`, `BACKEND_URL` in platformio.ini.
 
-### Phase 5: Babylon Digital Twin Backend
+**Option B — Serial (USB):** `pio run -e serial`; on PC: `node serial_to_backend.js COM3`
+
+**Option C — No ESP:** `node send_test_sensor_data.js` (uses `shared/apiClient`)
+
+### Phase 3: Babylon
 
 1. `cd babylon && npm install && npm start` (port 5004).
-2. Dashboard calls `GET http://localhost:5004/api/twin/state` for twin data.
+2. Dashboard uses `getTwinState()` from `frontend/src/lib/api`.
 
-### Phase 6: Babylon.js 3D Digital Twin (To Build)
+### Phase 4: Optional Python ML
 
-1. Create 3D scene: tank, pump, pipes, farm bed, plants.
-2. Consume `GET /api/twin/state` (or WebSocket).
-3. Logic:
-   - `health_score` → pump color (green/yellow/red).
-   - `pumpOn` → animate water flow.
-   - High temperature → heat glow effect.
+1. Pump API: `cd pump_dataset_generator && python pump_api.py` (5003).
+2. ML API: `cd ml-models && python api_server.py` (5001).  
+   (Main backend uses TensorFlow.js by default; Python is optional.)
 
-### Phase 7: Alerts and Polish
+### Phase 5: Vercel (Frontend Deploy)
 
-1. Add popup/sound when condition = Warning or Fault.
-2. Add SMS/Email (optional).
-3. Add voice control (Web Speech API) — future phase.
+1. Root Directory: `frontend`
+2. Build: `npm run build`; Output: `dist`
+3. `vercel.json` is preconfigured.
 
 ---
 
-## 🔷 START ORDER (All Services)
+## 🔷 START ORDER (Minimal)
 
-1. Pump Health API (5003) — `cd pump_dataset_generator && python pump_api.py`
-2. ML API (5001) — `cd ml-models && python api_server.py`
-3. Backend (5000) — `cd backend && npm start`
-4. Babylon (5004) — `cd babylon && npm start`
-5. Dashboard (5173) — `cd frontend && npm run dev`
-6. ESP32 — power on (or use CSV sim)
+1. Backend (5000) — `cd backend && npm start`
+2. Dashboard (5173) — `cd frontend && npm run dev`
+3. Babylon (5004) — `cd babylon && npm start`
+4. ESP32 or `node send_test_sensor_data.js`
+
+**Optional:** Pump API (5003), Python ML API (5001)
 
 ---
 
-## 🔷 FOLDER → PURPOSE TABLE (Quick Reference)
+## 🔷 MODULES REFERENCE (Send/Receive Data)
+
+### Shared — `shared/apiClient.js`
+```js
+const { postSensors, getSensors, getPredictions } = require('./shared/apiClient');
+await postSensors({ flow_rate_Lmin: 12, current_A: 4 });
+const sensors = await getSensors();
+```
+
+### Frontend — `frontend/src/lib/api`
+```ts
+import { getSensorData, turnPumpOn } from "@/lib/api";
+```
+
+### Backend — `backend/modules`
+- `store` — getSensors, setPrediction, etc.
+- `routes` — registerRoutes(app, io, processSensorData)
+- `websocket` — broadcastSensorUpdate, broadcastPredictionUpdate
+
+See **MODULES_REFERENCE.md** for full API.
+
+---
+
+## 🔷 VERCEL DEPLOYMENT
+
+| Setting | Value |
+|---------|-------|
+| Root Directory | `frontend` |
+| Build Command | `npm run build` |
+| Output Directory | `dist` |
+| Install Command | `npm install` |
+
+---
+
+## 🔷 FOLDER → PURPOSE (Quick Reference)
 
 | Folder | Purpose |
 |--------|---------|
-| **frontend** | Dashboard UI, sensor charts, pump control, camera, predictions |
-| **smartirrigation** | ESP32 firmware, sensor reads, pump relay |
-| **aiml_model** | ML training, Pump Health API, ML API, GRU |
-| **backend** | Central API, WebSocket, pump control, ML proxy |
-| **babylon** | Twin state aggregation, `/api/twin/state` for 3D client |
+| **frontend** | Dashboard (Vite+React), modular `lib/api` |
+| **esp** | ESP32 firmware; flow_sensor_to_backend: WiFi/Serial/Ethernet |
+| **backend** | Central API + AIML (TensorFlow.js), modular `modules/` |
+| **babylon** | Twin state; uses shared apiClient |
+| **shared** | apiClient, config — send/receive for scripts |
+| **ml-models** | Optional Python ML API |
+| **pump_dataset_generator** | Pump Health API, GRU, dataset |
 
 ---
 
-**Status:** Use this document as the single source of truth for folder mapping and implementation steps.
+---
+
+## 🔷 RELATED DOCS
+
+| Doc | Purpose |
+|-----|---------|
+| `MODULES_REFERENCE.md` | Full module API (shared, backend, frontend) |
+| `esp/flow_sensor_to_backend/FLOW_TO_BACKEND_README.md` | Flow sensor config, transport, serial bridge |
+| `VERCEL_FRONTEND_DEPLOY.md` | Vercel deployment fix |
+| `FOLDER_PURPOSE_MAPPING.md` | Quick folder reference |
+
+---
+
+**Status:** Single source of truth for folder mapping, data flow, modules, and deployment.

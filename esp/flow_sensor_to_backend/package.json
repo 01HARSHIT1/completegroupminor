@@ -1,0 +1,14 @@
+{
+  "name": "serial-to-backend-bridge",
+  "version": "1.0.0",
+  "description": "Reads ESP32 JSON from Serial (USB cable), forwards to Express backend",
+  "main": "serial_to_backend.js",
+  "scripts": {
+    "start": "node serial_to_backend.js",
+    "bridge": "node serial_to_backend.js COM3 http://localhost:5000"
+  },
+  "dependencies": {
+    "serialport": "^12.0.0",
+    "@serialport/parser-readline": "^13.0.0"
+  }
+}

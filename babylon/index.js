@@ -1,48 +1,35 @@
 /**
  * Backend 4 - Babylon / Digital Twin
- * Data processing and data transfer for 3D visualization and digital twin.
- * Fetches live state from Backend 2 (central API) and exposes aggregated twin state.
+ * Fetches live state from Backend 2 via shared apiClient.
  */
-
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
-const axios = require('axios');
+const { getSensors, getPredictions } = require(path.join(__dirname, '../shared/apiClient'));
+const { getBackendUrl } = require(path.join(__dirname, '../shared/config'));
 
-const BACKEND2_URL = process.env.BACKEND2_URL || 'http://localhost:5000';
+const BACKEND_URL = process.env.BACKEND2_URL || getBackendUrl();
 const PORT = process.env.PORT || 5004;
 
 const app = express();
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
-// Cache of twin state (updated by polling Backend 2)
 let twinState = {
   pumpOn: false,
-  sensors: {
-    current_A: 0,
-    temperature_C: 0,
-    vibration_rms: 0,
-    flow_rate_Lmin: 0,
-    voltage_V: 230,
-    tank_level_cm: 0,
-  },
-  health: {
-    condition: 'Normal',
-    health_score: 100,
-    confidence: 0,
-  },
+  sensors: { current_A: 0, temperature_C: 0, vibration_rms: 0, flow_rate_Lmin: 0, voltage_V: 230, tank_level_cm: 0 },
+  health: { condition: 'Normal', health_score: 100, confidence: 0 },
   lastSync: null,
   timestamp: null,
 };
 
 async function fetchFromBackend2() {
   try {
-    const [sensorsRes, predictionsRes] = await Promise.all([
-      axios.get(`${BACKEND2_URL}/api/sensors`, { timeout: 3000 }),
-      axios.get(`${BACKEND2_URL}/api/predictions`, { timeout: 3000 }),
+    const [sensors, prediction] = await Promise.all([
+      getSensors(BACKEND_URL),
+      getPredictions(BACKEND_URL),
     ]);
-    const sensors = sensorsRes.data;
-    const prediction = predictionsRes.data;
+    // sensors and prediction already from apiClient
     twinState = {
       pumpOn: sensors.pump_status === 'ON',
       sensors: {
@@ -75,7 +62,7 @@ app.get('/', (req, res) => {
   res.json({
     service: 'Smart Irrigation - Babylon / Digital Twin Backend',
     version: '1.0.0',
-    backend2: BACKEND2_URL,
+    backend2: BACKEND_URL,
     endpoints: {
       twinState: 'GET /api/twin/state',
       health: 'GET /health',
@@ -96,7 +83,7 @@ app.listen(PORT, () => {
   console.log('Babylon / Digital Twin Backend (Backend 4)');
   console.log('='.repeat(50));
   console.log(`Server: http://localhost:${PORT}`);
-  console.log(`Backend 2 (central API): ${BACKEND2_URL}`);
+  console.log(`Backend 2 (central API): ${BACKEND_URL}`);
   console.log('GET /api/twin/state - aggregated twin state for 3D/visualization');
   console.log('='.repeat(50));
 });
