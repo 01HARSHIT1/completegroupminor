@@ -1,0 +1,46 @@
+{
+  "feature_order": [
+    "current_A",
+    "temperature_C",
+    "vibration_rms",
+    "flow_rate_Lmin",
+    "pump_runtime_min",
+    "health",
+    "flow_trend",
+    "zero_flow_seconds",
+    "divider_voltage",
+    "sensor_distance_m"
+  ],
+  "condition_labels": [
+    "Normal",
+    "Leakage Detected",
+    "Blockage Suspected",
+    "Failure Risk High"
+  ],
+  "num_classes": 4,
+  "scaler_mean": [
+    5.087191862032264,
+    92.15866537532807,
+    1.7574021928703687,
+    -0.04994627265533536,
+    20.83291666664136,
+    13.514844027414565,
+    3.568216995517446e-06,
+    0.06242,
+    1.0,
+    0.0
+  ],
+  "scaler_scale": [
+    0.7561708487000316,
+    14.618565634778196,
+    0.4467086317120603,
+    0.11228863039985738,
+    12.028130605629961,
+    26.868259018382684,
+    0.04424156872600101,
+    0.24191681132157805,
+    1.0,
+    1.0
+  ],
+  "test_accuracy": 0.9832
+}
